@@ -67,3 +67,14 @@ def get_hypervutils():
     LOG.debug(_("Loading class: %(module_name)s.%(class_name)s"),
               {'module_name': cls.__module__, 'class_name': cls.__name__})
     return cls()
+
+
+def get_class(class_v1, class_v2):
+    if _check_min_windows_version(6, 3):
+        cls = class_v2
+    else:
+        cls = class_v1
+
+    LOG.debug("Loading class: %(module_name)s.%(class_name)s",
+              {'module_name': cls.__module__, 'class_name': cls.__name__})
+    return cls()
