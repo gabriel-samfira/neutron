@@ -26,7 +26,7 @@ from oslo.config import cfg
 from oslo import messaging
 
 from neutron.agent.linux import ip_lib
-from neutron.agent.linux import ovs_lib
+from neutron.agent.common import ovs_lib
 from neutron.agent import rpc as agent_rpc
 from neutron.common import config as common_config
 from neutron.common import constants as n_const

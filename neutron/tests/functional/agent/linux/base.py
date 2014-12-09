@@ -15,7 +15,7 @@
 import random
 
 from neutron.agent.linux import ip_lib
-from neutron.agent.linux import ovs_lib
+from neutron.agent.common import ovs_lib
 from neutron.agent.linux import utils
 from neutron.common import constants as n_const
 from neutron.openstack.common import uuidutils

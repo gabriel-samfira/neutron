@@ -19,7 +19,7 @@ import mock
 from oslo.config import cfg
 import testtools
 
-from neutron.agent.linux import ovs_lib
+from neutron.agent.common import ovs_lib
 from neutron.extensions import securitygroup as ext_sg
 from neutron.plugins.oneconvergence.agent import nvsd_neutron_agent
 from neutron.tests import base

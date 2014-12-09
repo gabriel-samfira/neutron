@@ -27,7 +27,7 @@ from neutron.agent import l3_agent
 from neutron.agent.linux import dhcp
 from neutron.agent.linux import interface
 from neutron.agent.linux import ip_lib
-from neutron.agent.linux import ovs_lib
+from neutron.agent.common import ovs_lib
 from neutron.api.v2 import attributes
 from neutron.common import config
 from neutron.i18n import _LE

@@ -20,7 +20,7 @@ import sys
 import time
 
 import eventlet
-eventlet.monkey_patch()
+eventlet.monkey_patch(os=False, thread=False)
 
 import netaddr
 from neutron.plugins.openvswitch.agent import ovs_dvr_neutron_agent
@@ -30,7 +30,7 @@ from six import moves
 
 from neutron.agent import l2population_rpc
 from neutron.agent.linux import ip_lib
-from neutron.agent.linux import ovs_lib
+from neutron.agent.common import ovs_lib
 from neutron.agent.linux import polling
 from neutron.agent.linux import utils
 from neutron.agent import rpc as agent_rpc
@@ -962,7 +962,6 @@ class OVSNeutronAgent(sg_rpc.SecurityGroupAgentRpcCallbackMixin,
             updated_ports &= cur_ports
             if updated_ports:
                 port_info['updated'] = updated_ports
-
         # FIXME(salv-orlando): It's not really necessary to return early
         # if nothing has changed.
         if cur_ports == registered_ports:
@@ -1217,8 +1216,8 @@ class OVSNeutronAgent(sg_rpc.SecurityGroupAgentRpcCallbackMixin,
         # will not be wired anyway, and a resync will be triggered
         # TODO(salv-orlando): Optimize avoiding applying filters unnecessarily
         # (eg: when there are no IP address changes)
-        self.sg_agent.setup_port_filters(port_info.get('added', set()),
-                                         port_info.get('updated', set()))
+        # self.sg_agent.setup_port_filters(port_info.get('added', set()),
+        #                                  port_info.get('updated', set()))
         # VIF wiring needs to be performed always for 'new' devices.
         # For updated ports, re-wiring is not needed in most cases, but needs
         # to be performed anyway when the admin state of a device is changed.

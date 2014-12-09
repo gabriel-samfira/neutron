@@ -28,7 +28,7 @@ from neutron.agent.common import config
 from neutron.agent.linux import dhcp
 from neutron.agent.linux import external_process
 from neutron.agent.linux import interface
-from neutron.agent.linux import ovs_lib  # noqa
+from neutron.agent.common import ovs_lib  # noqa
 from neutron.agent import rpc as agent_rpc
 from neutron.common import config as common_config
 from neutron.common import constants

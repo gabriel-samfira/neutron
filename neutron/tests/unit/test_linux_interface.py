@@ -19,7 +19,7 @@ from neutron.agent.common import config
 from neutron.agent.linux import dhcp
 from neutron.agent.linux import interface
 from neutron.agent.linux import ip_lib
-from neutron.agent.linux import ovs_lib
+from neutron.agent.common import ovs_lib
 from neutron.agent.linux import utils
 from neutron.extensions import flavor
 from neutron.openstack.common import uuidutils
