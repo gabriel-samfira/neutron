@@ -15,6 +15,7 @@
 
 import itertools
 import operator
+import os
 
 from oslo.config import cfg
 
@@ -171,7 +172,7 @@ class OVSBridge(BaseOVS):
                       {'cmd': full_args, 'exception': e})
 
     def count_flows(self):
-        flow_list = self.run_ofctl("dump-flows", []).split("\n")[1:]
+        flow_list = self.run_ofctl("dump-flows", []).split(os.linesep)[1:]
         return len(flow_list) - 1
 
     def remove_all_flows(self):
@@ -274,7 +275,7 @@ class OVSBridge(BaseOVS):
     def get_port_name_list(self):
         res = self.run_vsctl(["list-ports", self.br_name], check_error=True)
         if res:
-            return res.strip().split("\n")
+            return res.strip().split(os.linesep)
         return []
 
     def get_port_stats(self, port_name):
@@ -537,7 +538,8 @@ def get_bridges(root_helper):
     args = ["ovs-vsctl", "--timeout=%d" % cfg.CONF.ovs_vsctl_timeout,
             "list-br"]
     try:
-        return utils.execute(args, root_helper=root_helper).strip().split("\n")
+        return utils.execute(
+            args, root_helper=root_helper).strip().split(os.linesep)
     except Exception as e:
         with excutils.save_and_reraise_exception():
             LOG.exception(_("Unable to retrieve bridges. Exception: %s"), e)

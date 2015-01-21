@@ -25,13 +25,7 @@ def get_polling_manager(minimize_polling=False,
                         root_helper=None,
                         ovsdb_monitor_respawn_interval=(
                             constants.DEFAULT_OVSDBMON_RESPAWN)):
-    if minimize_polling:
-        pm = InterfacePollingMinimizer(
-            root_helper=root_helper,
-            ovsdb_monitor_respawn_interval=ovsdb_monitor_respawn_interval)
-        pm.start()
-    else:
-        pm = AlwaysPoll()
+    pm = AlwaysPoll()
     try:
         yield pm
     finally:

@@ -20,7 +20,7 @@ import sys
 import time
 
 import eventlet
-eventlet.monkey_patch()
+eventlet.monkey_patch(os=False, thread=False)
 
 import netaddr
 from neutron.plugins.openvswitch.agent import ovs_dvr_neutron_agent
@@ -701,7 +701,12 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         self.int_br.delete_port(cfg.CONF.OVS.int_peer_patch_port)
         self.int_br.remove_all_flows()
         # switch all traffic using L2 learning
-        self.int_br.add_flow(priority=1, actions="normal")
+        # self.int_br.add_flow(priority=1, actions="normal")
+        # TODO: gsamfira
+        """
+        "cookie=0x0, table=0, idle_age=80, priority=1,dl_vlan=8, in_port=5 actions=strip_vlan,output:4"
+        "cookie=0x0, table=0, idle_age=80, priority=1,in_port=4 actions=mod_vlan_vid:8,output:5"
+        """
         # Add a canary flow to int_br to track OVS restarts
         self.int_br.add_flow(table=constants.CANARY_TABLE, priority=0,
                              actions="drop")
@@ -1036,6 +1041,13 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         self.tun_br_ofports[tunnel_type][remote_ip] = ofport
         # Add flow in default table to resubmit to the right
         # tunnelling table (lvid will be set in the latter)
+        # TODO: gsamfira strip_vlan, if in config
+        # TODO:
+        """
+        "cookie=0x0, table=0, idle_age=80, priority=1,dl_vlan=8, in_port=5 actions=strip_vlan,output:4"
+        "cookie=0x0, table=0, idle_age=80, priority=1,in_port=4 actions=mod_vlan_vid:8,output:5"
+
+        """
         br.add_flow(priority=1,
                     in_port=ofport,
                     actions="resubmit(,%s)" %
@@ -1046,6 +1058,7 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
             # Update flooding flows to include the new tunnel
             for network_id, vlan_mapping in self.local_vlan_map.iteritems():
                 if vlan_mapping.network_type == tunnel_type:
+                    # TODO: gsamfira here it is! mod_vlan_vid:8
                     br.mod_flow(table=constants.FLOOD_TO_TUN,
                                 dl_vlan=vlan_mapping.vlan,
                                 actions="strip_vlan,set_tunnel:%s,output:%s" %
@@ -1201,8 +1214,8 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         # will not be wired anyway, and a resync will be triggered
         # TODO(salv-orlando): Optimize avoiding applying filters unnecessarily
         # (eg: when there are no IP address changes)
-        self.sg_agent.setup_port_filters(port_info.get('added', set()),
-                                         port_info.get('updated', set()))
+        # self.sg_agent.setup_port_filters(port_info.get('added', set()),
+        #                                  port_info.get('updated', set()))
         # VIF wiring needs to be performed always for 'new' devices.
         # For updated ports, re-wiring is not needed in most cases, but needs
         # to be performed anyway when the admin state of a device is changed.

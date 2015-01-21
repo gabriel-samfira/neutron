@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import fcntl
+# import fcntl
 import glob
 import os
 import shlex
@@ -40,7 +40,7 @@ def create_process(cmd, root_helper=None, addl_env=None):
     list of command arguments used to create it.
     """
     if root_helper:
-        cmd = shlex.split(root_helper) + cmd
+        cmd = [root_helper, ] + cmd
     cmd = map(str, cmd)
 
     LOG.debug(_("Running command: %s"), cmd)
@@ -92,13 +92,7 @@ def execute(cmd, root_helper=None, process_input=None, addl_env=None,
 
 
 def get_interface_mac(interface):
-    MAC_START = 18
-    MAC_END = 24
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    info = fcntl.ioctl(s.fileno(), 0x8927,
-        struct.pack('256s', interface[:constants.DEVICE_NAME_MAX_LEN]))
-    return ''.join(['%02x:' % ord(char)
-                    for char in info[MAC_START:MAC_END]])[:-1]
+    return "aa:aa:aa:aa:aa:aa"
 
 
 def replace_file(file_name, data):
