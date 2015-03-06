@@ -140,7 +140,8 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                  ovsdb_monitor_respawn_interval=(
                      constants.DEFAULT_OVSDBMON_RESPAWN),
                  arp_responder=False,
-                 use_veth_interconnection=False):
+                 use_veth_interconnection=False,
+                 data_port_vlan=-1):
         '''Constructor.
 
         :param integ_br: name of the integration bridge.
@@ -163,10 +164,14 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                supported.
         :param use_veth_interconnection: use veths instead of patch ports to
                interconnect the integration bridge to physical bridges.
+        :param data_port_vlan: In some situations the data port may receive
+               VLAN tagged traffic. In such cases we need to add some extra
+               flow rules to get the tunnel working.
         '''
         super(OVSNeutronAgent, self).__init__()
         self.use_veth_interconnection = use_veth_interconnection
         self.veth_mtu = veth_mtu
+        self.data_port_vlan = data_port_vlan
         self.root_helper = root_helper
         self.available_local_vlans = set(moves.xrange(q_const.MIN_VLAN_TAG,
                                                       q_const.MAX_VLAN_TAG))
@@ -367,13 +372,19 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                                         agent_ports, self.tun_br_ofports)
 
     def add_fdb_flow(self, br, port_info, remote_ip, lvm, ofport):
+        actions = "strip_vlan,set_tunnel:%s,output:%s" % \
+            (lvm.segmentation_id, ofports)
+        if self.data_port_vlan > 0:
+            actions = "strip_vlan,set_tunnel:%s,mod_vlan_vid:%s,output:%s" % \
+                (lvm.segmentation_id, self.data_port_vlan, ofports)
+
         if port_info == q_const.FLOODING_ENTRY:
             lvm.tun_ofports.add(ofport)
             ofports = ','.join(lvm.tun_ofports)
+
             br.mod_flow(table=constants.FLOOD_TO_TUN,
                         dl_vlan=lvm.vlan,
-                        actions="strip_vlan,set_tunnel:%s,output:%s" %
-                        (lvm.segmentation_id, ofports))
+                        actions=actions)
         else:
             self.setup_entry_for_arp_reply(br, 'add', lvm.vlan, port_info[0],
                                            port_info[1])
@@ -381,8 +392,7 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                         priority=2,
                         dl_vlan=lvm.vlan,
                         dl_dst=port_info[0],
-                        actions="strip_vlan,set_tunnel:%s,output:%s" %
-                        (lvm.segmentation_id, ofport))
+                        actions=actions)
 
     def del_fdb_flow(self, br, port_info, remote_ip, lvm, ofport):
         if port_info == q_const.FLOODING_ENTRY:
@@ -701,12 +711,7 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         self.int_br.delete_port(cfg.CONF.OVS.int_peer_patch_port)
         self.int_br.remove_all_flows()
         # switch all traffic using L2 learning
-        # self.int_br.add_flow(priority=1, actions="normal")
-        # TODO: gsamfira
-        """
-        "cookie=0x0, table=0, idle_age=80, priority=1,dl_vlan=8, in_port=5 actions=strip_vlan,output:4"
-        "cookie=0x0, table=0, idle_age=80, priority=1,in_port=4 actions=mod_vlan_vid:8,output:5"
-        """
+        self.int_br.add_flow(priority=1, actions="normal")
         # Add a canary flow to int_br to track OVS restarts
         self.int_br.add_flow(table=constants.CANARY_TABLE, priority=0,
                              actions="drop")
@@ -831,6 +836,14 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         self.tun_br.add_flow(table=constants.FLOOD_TO_TUN,
                              priority=0,
                              actions="drop")
+
+        # TODO: gsamfira. Only relevant on Windows
+        self.tun_br.add_port(
+            constants.OVS_PORT_INTERNAL,
+            request_ofport=constants.OVS_OFPORT_INTERNAL)
+        self.tun_br.add_port(
+            constants.OVS_PORT_EXTERNAL,
+            request_ofport=constants.OVS_OFPORT_EXTERNAL)
 
     def get_peer_name(self, prefix, name):
         """Construct a peer name based on the prefix and name.
@@ -1041,28 +1054,44 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         self.tun_br_ofports[tunnel_type][remote_ip] = ofport
         # Add flow in default table to resubmit to the right
         # tunnelling table (lvid will be set in the latter)
-        # TODO: gsamfira strip_vlan, if in config
-        # TODO:
-        """
-        "cookie=0x0, table=0, idle_age=80, priority=1,dl_vlan=8, in_port=5 actions=strip_vlan,output:4"
-        "cookie=0x0, table=0, idle_age=80, priority=1,in_port=4 actions=mod_vlan_vid:8,output:5"
+        actions = "resubmit(,%s)" % constants.TUN_TABLE[tunnel_type]
 
-        """
+        internalOfport = br.get_port_ofport(constants.OVS_PORT_INTERNAL)
+        externalOfport = br.get_port_ofport(constants.OVS_PORT_EXTERNAL)
+
+        if self.data_port_vlan > 0:
+            actions = "strip_vlan,resubmit(,%s)" % \
+                constants.TUN_TABLE[tunnel_type]
+
+            br.add_flow(
+                priority=1,
+                dl_vlan=self.data_port_vlan,
+                in_port=externalOfport,
+                actions="strip_vlan,output:%s" % internalOfport)
+            br.add_flow(
+                priority=1,
+                in_port=internalOfport,
+                actions="mod_vlan_vid:%s,output:%s" %
+                (self.data_port_vlan, externalOfport))
+
         br.add_flow(priority=1,
                     in_port=ofport,
-                    actions="resubmit(,%s)" %
-                    constants.TUN_TABLE[tunnel_type])
+                    actions=actions)
 
         ofports = ','.join(self.tun_br_ofports[tunnel_type].values())
         if ofports and not self.l2_pop:
             # Update flooding flows to include the new tunnel
             for network_id, vlan_mapping in self.local_vlan_map.iteritems():
                 if vlan_mapping.network_type == tunnel_type:
-                    # TODO: gsamfira here it is! mod_vlan_vid:8
+                    actions = "strip_vlan,set_tunnel:%s,output:%s" % \
+                        (vlan_mapping.segmentation_id, ofports)
+                    if self.data_port_vlan > 0:
+                        actions = "strip_vlan,set_tunnel:%s,mod_vlan_vid:%s,output:%s" % \
+                            (vlan_mapping.segmentation_id,
+                             self.data_port_vlan, ofports)
                     br.mod_flow(table=constants.FLOOD_TO_TUN,
                                 dl_vlan=vlan_mapping.vlan,
-                                actions="strip_vlan,set_tunnel:%s,output:%s" %
-                                (vlan_mapping.segmentation_id, ofports))
+                                actions=actions)
         return ofport
 
     def setup_tunnel_port(self, br, remote_ip, network_type):
@@ -1268,8 +1297,8 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                 LOG.debug(_("process_ancillary_network_ports - iteration: "
                             "%(iter_num)d - treat_ancillary_devices_added "
                             "completed in %(elapsed).3f"),
-                        {'iter_num': self.iter_num,
-                        'elapsed': time.time() - start})
+                          {'iter_num': self.iter_num,
+                          'elapsed': time.time() - start})
             except DeviceListRetrievalError:
                 # Need to resync as there was an error with server
                 # communication.
@@ -1410,8 +1439,8 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
                     # Secure and wire/unwire VIFs and update their status
                     # on Neutron server
                     if (self._port_info_has_changes(port_info) or
-                        self.sg_agent.firewall_refresh_needed() or
-                        ovs_restarted):
+                            self.sg_agent.firewall_refresh_needed() or
+                            ovs_restarted):
                         LOG.debug(_("Starting to process devices in:%s"),
                                   port_info)
                         # If treat devices fails - must resync with plugin
@@ -1481,7 +1510,7 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
         with polling.get_polling_manager(
             self.minimize_polling,
             self.root_helper,
-            self.ovsdb_monitor_respawn_interval) as pm:
+                self.ovsdb_monitor_respawn_interval) as pm:
 
             self.rpc_loop(polling_manager=pm)
 
@@ -1515,6 +1544,7 @@ def create_agent_config_map(config):
         l2_population=config.AGENT.l2_population,
         arp_responder=config.AGENT.arp_responder,
         use_veth_interconnection=config.OVS.use_veth_interconnection,
+        data_port_vlan=config.AGENT.data_port_vlan,
     )
 
     # If enable_tunneling is TRUE, set tunnel_type to default to GRE

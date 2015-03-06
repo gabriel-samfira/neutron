@@ -71,3 +71,12 @@ ARP_RESPONDER_ACTIONS = ('move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],'
                          'load:%(mac)#x->NXM_NX_ARP_SHA[],'
                          'load:%(ip)#x->NXM_OF_ARP_SPA[],'
                          'in_port')
+
+# WARNING: dragons ahead
+# This is a hack
+OVS_OFPORT_INTERNAL = 50
+OVS_OFPORT_EXTERNAL = 60
+
+# Windows specific implementation
+OVS_PORT_INTERNAL = "internal"
+OVS_PORT_EXTERNAL = "external.1"

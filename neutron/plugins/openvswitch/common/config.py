@@ -62,6 +62,8 @@ ovs_opts = [
 ]
 
 agent_opts = [
+    cfg.IntOpt('data_port_vlan', default=-1,
+               help=_("VLAN tag over which tunnels should be created.")),
     cfg.IntOpt('polling_interval', default=2,
                help=_("The number of seconds the agent will wait between "
                       "polling for local device changes.")),

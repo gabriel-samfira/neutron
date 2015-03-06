@@ -145,9 +145,13 @@ class OVSBridge(BaseOVS):
         self.destroy()
         self.create()
 
-    def add_port(self, port_name):
+    def add_port(self, port_name, request_ofport=None):
         self.run_vsctl(["--", "--may-exist", "add-port", self.br_name,
                         port_name])
+        if request_ofport:
+            self.run_vsctl(["--", "set", "Interface", port_name,
+                            "offport=%s" % request_ofport])
+
         return self.get_port_ofport(port_name)
 
     def delete_port(self, port_name):
@@ -340,7 +344,8 @@ class OVSBridge(BaseOVS):
             else:
                 if int_ofport > 0:
                     if ("iface-id" in external_ids and
-                        "attached-mac" in external_ids):
+                            "attached-mac" in external_ids):
+
                         edge_ports.add(external_ids['iface-id'])
                     elif ("xs-vif-uuid" in external_ids and
                           "attached-mac" in external_ids):
