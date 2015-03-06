@@ -1058,21 +1058,23 @@ class OVSNeutronAgent(n_rpc.RpcCallback,
 
         internalOfport = br.get_port_ofport(constants.OVS_PORT_INTERNAL)
         externalOfport = br.get_port_ofport(constants.OVS_PORT_EXTERNAL)
+        extActions = "output:%s" % internalOfport
+        intActions = "output:%s" % externalOfport
 
         if self.data_port_vlan > 0:
             actions = "strip_vlan,resubmit(,%s)" % \
                 constants.TUN_TABLE[tunnel_type]
+            extActions = "strip_vlan,output:%s" % internalOfport
+            intActions = "mod_vlan_vid:%s,output:%s" % (self.data_port_vlan, externalOfport)
 
-            br.add_flow(
+        br.add_flow(
                 priority=1,
-                dl_vlan=self.data_port_vlan,
                 in_port=externalOfport,
-                actions="strip_vlan,output:%s" % internalOfport)
-            br.add_flow(
+                actions=extActions)
+        br.add_flow(
                 priority=1,
                 in_port=internalOfport,
-                actions="mod_vlan_vid:%s,output:%s" %
-                (self.data_port_vlan, externalOfport))
+                actions=intActions)
 
         br.add_flow(priority=1,
                     in_port=ofport,
