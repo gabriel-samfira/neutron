@@ -15,6 +15,7 @@
 
 import collections
 import hashlib
+import os
 import signal
 import sys
 import time
@@ -51,6 +52,10 @@ from neutron.plugins.ml2.drivers.openvswitch.agent.common \
     import constants
 from neutron.plugins.ml2.drivers.openvswitch.agent \
     import ovs_dvr_neutron_agent
+
+
+if os.name == 'nt':
+    import netifaces
 
 
 LOG = logging.getLogger(__name__)
@@ -1873,11 +1878,26 @@ def validate_local_ip(local_ip):
     if not cfg.CONF.AGENT.tunnel_types:
         return
 
-    if not ip_lib.IPWrapper().get_device_by_ip(local_ip):
-        LOG.error(_LE("Tunneling can't be enabled with invalid local_ip '%s'."
-                      " IP couldn't be found on this host's interfaces."),
-                  local_ip)
+    msg = _("Tunneling can't be enabled with invalid local_ip '%s'. "
+            "IP couldn't be found on this host's interfaces.") % local_ip
+    if os.name == 'nt':
+        addresses = []
+        for iface in netifaces.interfaces():
+            try:
+                addresses = [ip['addr'] for ip in
+                    netifaces.ifaddresses(iface).get(netifaces.AF_INET, [])]
+                if local_ip in addresses:
+                    return
+            except OSError:
+                LOG.error(_LE("Failed to get ip addresses for interface: %s"),
+                    iface)
+                raise SystemExit(1)
+        LOG.error(msg)
         raise SystemExit(1)
+    else:
+        if not ip_lib.IPWrapper().get_device_by_ip(local_ip):
+            LOG.error(msg)
+            raise SystemExit(1)
 
 
 def prepare_xen_compute():
