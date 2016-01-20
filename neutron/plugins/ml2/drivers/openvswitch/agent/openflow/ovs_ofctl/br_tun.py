@@ -53,6 +53,19 @@ class OVSTunnelBridge(ovs_bridge.OVSAgentBridge,
     def setup_default_table(self, patch_int_ofport, arp_responder_enabled):
         # Table 0 (default) will sort incoming traffic depending on in_port
         with self.deferred() as deferred_br:
+            deferred_br.add_port(constants.OVS_PORT_INTERNAL)
+            deferred_br.add_port(constants.OVS_PORT_EXTERNAL)
+
+            internal_ofport = deferred_br.br.get_port_ofport(
+                constants.OVS_PORT_INTERNAL)
+            external_ofport = deferred_br.br.get_port_ofport(
+                constants.OVS_PORT_EXTERNAL)
+
+            deferred_br.add_flow(priority=1, in_port=external_ofport,
+                                 actions='output:%s' % internal_ofport)
+            deferred_br.add_flow(priority=1, in_port=internal_ofport,
+                                 actions='output:%s' % external_ofport)
+
             deferred_br.add_flow(priority=1,
                                  in_port=patch_int_ofport,
                                  actions="resubmit(,%s)" %
